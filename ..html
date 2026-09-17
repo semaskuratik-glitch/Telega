@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: 'VT323', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .header {
+      background: #16213e;
+      padding: 16px;
+      text-align: center;
+      border-bottom: 2px solid #0f3460;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header h1 {
+      font-size: 1.8rem;
+      color: #e94560;
+      text-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+      letter-spacing: 2px;
+    }
+
+    .header .status {
+      font-size: 0.9rem;
+      color: #0f3460;
+      margin-top: 4px;
+    }
+
+    .chat {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      line-height: 1.4;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.in {
+      background: #16213e;
+      border-left: 3px solid #0f3460;
+      align-self: flex-start;
+    }
+
+    .message.out {
+      background: #0f3460;
+      border-right: 3px solid #e94560;
+      align-self: flex-end;
+      text-align: right;
+    }
+
+    .message .author {
+      font-size: 0.8rem;
+      color: #e94560;
+      margin-bottom: 4px;
+    }
+
+    .message .time {
+      font-size: 0.7rem;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    .input-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #16213e;
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+      border-top: 2px solid #0f3460;
+    }
+
+    .input-bar input {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      color: #e0e0e0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-family: 'VT323', monospace;
+      font-size: 1.1rem;
+      outline: none;
+    }
+
+    .input-bar input:focus {
+      border-color: #e94560;
+    }
+
+    .input-bar button {
+      background: #e94560;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-family: 'VT323', monospace;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .input-bar button:active {
+      transform: scale(0.95);
+    }
+
+    .menu {
+      display: flex;
+      justify-content: space-around;
+      padding: 8px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .menu button {
+      background: none;
+      border: none;
+      color: #0f3460;
+      font-family: 'VT323', monospace;
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 8px 12px;
+      transition: color 0.2s;
+    }
+
+    .menu button.active {
+      color: #e94560;
+      border-bottom: 2px solid #e94560;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>◀ RETRO MSG ▶</h1>
+    <div class="status" id="status">подключение...</div>
+  </div>
+
+  <div class="menu">
+    <button class="active" onclick="switchTab('chat')">ЧАТ</button>
+    <button onclick="switchTab('profile')">ПРОФИЛЬ</button>
+    <button onclick="switchTab('settings')">НАСТРОЙКИ</button>
+  </div>
+
+  <!-- Вкладка чата -->
+  <div id="tab-chat" class="chat">
+    <div class="message in">
+      <div class="author">СИСТЕМА</div>
+      Добро пожаловать в RETRO MSG!
+      <div class="time">--:--</div>
+    </div>
+  </div>
+
+  <!-- Вкладка профиля -->
+  <div id="tab-profile" class="chat" style="display:none">
+    <div class="message in">
+      <div class="author">ПРОФИЛЬ</div>
+      <div id="profile-info">Загрузка...</div>
+    </div>
+  </div>
+
+  <!-- Вкладка настроек -->
+  <div id="tab-settings" class="chat" style="display:none">
+    <div class="message in">
+      <div class="author">НАСТРОЙКИ</div>
+      Тема: тёмная ретро<br>
+      Шрифт: VT323<br>
+      Цвет акцента: #e94560
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <input type="text" id="msg-input" placeholder="введите сообщение..." maxlength="200">
+    <button id="send-btn">ОТП</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const user = tg.initDataUnsafe?.user;
+    const userName = user?.first_name || 'гость';
+    const statusEl = document.getElementById('status');
+    const profileEl = document.getElementById('profile-info');
+
+    // Статус
+    statusEl.innerText = `в сети как ${userName}`;
+
+    // Профиль
+    if (user) {
+      profileEl.innerHTML = `
+        ID: ${user.id || 'нет'}<br>
+        Имя: ${user.first_name || ''}<br>
+        Фамилия: ${user.last_name || 'нет'}<br>
+        Юзернейм: @${user.username || 'нет'}<br>
+        Язык: ${user.language_code || 'нет'}
+      `;
+    } else {
+      profileEl.innerText = 'Данные недоступны (открой через бота в Telegram)';
+    }
+
+    // Переключение вкладок
+    function switchTab(tab) {
+      ['chat', 'profile', 'settings'].forEach(t => {
+        document.getElementById('tab-' + t).style.display = t === tab ? 'flex' : 'none';
+      });
+      document.querySelectorAll('.menu button').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    // Отправка сообщений
+    const chat = document.getElementById('tab-chat');
+    const input = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    function getTime() {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    function addMessage(text, type, author) {
+      const msg = document.createElement('div');
+      msg.className = 'message ' + type;
+      msg.innerHTML = `
+        ${author ? `<div class="author">${author}</div>` : ''}
+        ${text}
+        <div class="time">${getTime()}</div>
+      `;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage(text, 'out', userName);
+      input.value = '';
+
+      // Автоответ
+      setTimeout(() => {
+        const replies = [
+          'принято!',
+          'интересно...',
+          'ок, дальше',
+          'хорошо сказано',
+          'ретро форевер!',
+        ];
+        addMessage(replies[Math.floor(Math.random() * replies.length)], 'in', 'БОТ');
+      }, 600);
+    }
+
+    sendBtn.onclick = sendMessage;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Haptic feedback (вибрация)
+    tg.HapticFeedback?.impactOccurred?.('light');
+  </script>
+</body>
+</html>
